@@ -1,0 +1,148 @@
+jpa interface, property테이블이 있어. if_id가 fk로 연결되있고, 1개의 interface에 10개씩 property가 달려있어. react-admin으로 복사 기능을 만들어서. if_id복사하면 딸려있는 property도 복사하고 싶은데. spring code를 줘
+
+
+
+Step 1: Entity 설정
+import javax.persistence.*;
+import java.util.List;
+
+@Entity
+public class Interface {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+
+    @OneToMany(mappedBy = "interface", cascade = CascadeType.ALL)
+    private List<Property> properties;
+
+    // Getters and Setters
+}
+
+@Entity
+public class Property {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+
+    @ManyToOne
+    @JoinColumn(name = "interface_id")
+    private Interface interface;
+
+    // Getters and Setters
+}
+
+Step 2: Repository 설정
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface InterfaceRepository extends JpaRepository<Interface, Long> {
+}
+
+public interface PropertyRepository extends JpaRepository<Property, Long> {
+}
+
+Step 3: Service 설정
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class InterfaceService {
+
+    @Autowired
+    private InterfaceRepository interfaceRepository;
+
+    @Autowired
+    private PropertyRepository propertyRepository;
+
+    @Transactional
+    public Interface copyInterface(Long ifId) {
+        Interface original = interfaceRepository.findById(ifId)
+                .orElseThrow(() -> new RuntimeException("Interface not found with id: " + ifId));
+
+        Interface copy = new Interface();
+        copy.setName(original.getName());
+
+        interfaceRepository.save(copy);
+
+        for (Property property : original.getProperties()) {
+            Property propertyCopy = new Property();
+            propertyCopy.setName(property.getName());
+            propertyCopy.setInterface(copy);
+            propertyRepository.save(propertyCopy);
+        }
+
+        return interfaceRepository.findById(copy.getId())
+                .orElseThrow(() -> new RuntimeException("Copied interface not found"));
+    }
+}
+
+Step 4: Controller 설정
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/interfaces")
+public class InterfaceController {
+
+    @Autowired
+    private InterfaceService interfaceService;
+
+    @PostMapping("/{ifId}/copy")
+    public Interface copyInterface(@PathVariable Long ifId) {
+        return interfaceService.copyInterface(ifId);
+    }
+}
+
+Step 5: React-Admin 설정
+import React from 'react';
+import { Button, useNotify, useRefresh } from 'react-admin';
+import { useHttpClient } from 'react-admin';
+
+const CopyButton = ({ record }) => {
+    const notify = useNotify();
+    const refresh = useRefresh();
+    const httpClient = useHttpClient();
+
+    const handleClick = () => {
+        httpClient(`api/interfaces/${record.id}/copy`, {
+            method: 'POST',
+        })
+        .then(() => {
+            notify('Interface copied successfully', 'info');
+            refresh();
+        })
+        .catch(error => {
+            notify(`Error: ${error.message}`, 'warning');
+        });
+    };
+
+    return <Button label="Copy" onClick={handleClick} />;
+};
+
+export default CopyButton;
+
+import React from 'react';
+import { List, Datagrid, TextField, EditButton, ShowButton } from 'react-admin';
+import CopyButton from './CopyButton';
+
+export const InterfaceList = props => (
+    <List {...props}>
+        <Datagrid>
+            <TextField source="id" />
+            <TextField source="name" />
+            <EditButton />
+            <ShowButton />
+            <CopyButton />
+        </Datagrid>
+    </List>
+);
+
+
+
+
+

@@ -1,0 +1,74 @@
+그럼  react-admin으로 interface create 할때, interface,property 를 SimpleForm으로 받아서  테이블에 저장하려면 어떻게 코드를 짜야해?
+
+Step 1: 백엔드 설정
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class InterfaceService {
+
+    @Autowired
+    private InterfaceRepository interfaceRepository;
+
+    @Autowired
+    private PropertyRepository propertyRepository;
+
+    @Transactional
+    public Interface createInterface(Interface interfaceEntity) {
+        Interface savedInterface = interfaceRepository.save(interfaceEntity);
+
+        List<Property> properties = interfaceEntity.getProperties();
+        for (Property property : properties) {
+            property.setInterface(savedInterface);
+            propertyRepository.save(property);
+        }
+
+        return savedInterface;
+    }
+}
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/interfaces")
+public class InterfaceController {
+
+    @Autowired
+    private InterfaceService interfaceService;
+
+    @PostMapping
+    public Interface createInterface(@RequestBody Interface interfaceEntity) {
+        return interfaceService.createInterface(interfaceEntity);
+    }
+}
+
+import React from 'react';
+import { SimpleFormIterator, TextInput, ArrayInput } from 'react-admin';
+
+const PropertyInput = () => (
+    <ArrayInput source="properties">
+        <SimpleFormIterator>
+            <TextInput source="name" label="Property Name" />
+        </SimpleFormIterator>
+    </ArrayInput>
+);
+
+export default PropertyInput;
+
+import React from 'react';
+import { Create, SimpleForm, TextInput } from 'react-admin';
+import PropertyInput from './PropertyInput';
+
+const InterfaceCreate = props => (
+    <Create {...props}>
+        <SimpleForm>
+            <TextInput source="name" label="Interface Name" />
+            <PropertyInput />
+        </SimpleForm>
+    </Create>
+);
+
+export default InterfaceCreate;
